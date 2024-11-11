@@ -22,6 +22,10 @@ To connect python with database,
 ```markdown
 pip install psycopg2
 ```
+To install sqlalchemy orm,
+```markdown
+pip install sqlalchemy
+```
 
 - [Tutorial Followed](https://lnkd.in/gDjt_Gji)
 - [Official Documentation](https://fastapi.tiangolo.com/tutorial/)
