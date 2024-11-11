@@ -1,73 +1,57 @@
-from typing import Annotated
-
-from fastapi import Depends, FastAPI, HTTPException, Query
-from sqlmodel import Field, Session, SQLModel, create_engine, select
-
-
-class Hero(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    name: str = Field(index=True)
-    age: int | None = Field(default=None, index=True)
-    secret_name: str
-
-
-# PostgreSQL database configuration
-postgresql_url = "postgresql://postgres:1234@localhost:5432/fastapi"
-
-# Create the engine with PostgreSQL connection URL
-engine = create_engine(postgresql_url)
-
-
-def create_db_and_tables():
-    SQLModel.metadata.create_all(engine)
-
-
-def get_session():
-    with Session(engine) as session:
-        yield session
-
-
-SessionDep = Annotated[Session, Depends(get_session)]
+from fastapi import FastAPI, Response, status, HTTPException
+from pydantic import BaseModel
+from app.models import engine, SQLAlchemyPost
+from sqlalchemy.orm import sessionmaker
 
 app = FastAPI()
 
+Session = sessionmaker(bind=engine)
+session = Session()
 
-@app.on_event("startup")
-def on_startup():
-    create_db_and_tables()
+class Post(BaseModel):
+    title: str
+    content: str
+    published: bool = True  # Default value is True if not provided
 
+@app.get("/posts")
+def get_posts():
+    posts = session.query(SQLAlchemyPost).all()
+    return {"data": posts}
 
-@app.post("/heroes/")
-def create_hero(hero: Hero, session: SessionDep) -> Hero:
-    session.add(hero)
+@app.post("/posts", status_code=status.HTTP_201_CREATED)
+def create_post(post: Post):
+    post = SQLAlchemyPost(title=post.title, content=post.content, published=post.published)
+    session.add(post)
     session.commit()
-    session.refresh(hero)
-    return hero
+    return {"message": "new post is added"}
+
+@app.get("/posts/{id}")
+def get_individual_post(id: int):
+    post = session.query(SQLAlchemyPost).filter_by(id=id).all()
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Post with id: {id} not found")
+    return {"data": post}
 
 
-@app.get("/heroes/")
-def read_heroes(
-    session: SessionDep,
-    offset: int = 0,
-    limit: Annotated[int, Query(le=100)] = 100,
-) -> list[Hero]:
-    heroes = session.exec(select(Hero).offset(offset).limit(limit)).all()
-    return heroes
-
-
-@app.get("/heroes/{hero_id}")
-def read_hero(hero_id: int, session: SessionDep) -> Hero:
-    hero = session.get(Hero, hero_id)
-    if not hero:
-        raise HTTPException(status_code=404, detail="Hero not found")
-    return hero
-
-
-@app.delete("/heroes/{hero_id}")
-def delete_hero(hero_id: int, session: SessionDep):
-    hero = session.get(Hero, hero_id)
-    if not hero:
-        raise HTTPException(status_code=404, detail="Hero not found")
-    session.delete(hero)
+@app.delete("/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_post(id: int):
+    deleted_post = session.query(SQLAlchemyPost).filter_by(id=id).first()
+    if deleted_post is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Post with id: {id} does not exist")
+    session.delete(deleted_post)
     session.commit()
-    return {"ok": True}
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+@app.put("/posts/{id}")
+def update_post(id: int, post: Post):
+    updated_post = session.query(SQLAlchemyPost).filter_by(id=id).first()
+
+    if updated_post is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Post with id: {id} does not exist")
+    updated_post.title = post.title
+    updated_post.content = post.content
+    session.commit()
+    return {"message": "Post updated"}
