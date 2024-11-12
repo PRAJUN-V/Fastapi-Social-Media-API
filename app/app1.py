@@ -1,17 +1,12 @@
 from fastapi import FastAPI, Response, status, HTTPException
-from pydantic import BaseModel
 from app.models import engine, SQLAlchemyPost
 from sqlalchemy.orm import sessionmaker
+from app.schemas import Post
 
 app = FastAPI()
 
 Session = sessionmaker(bind=engine)
 session = Session()
-
-class Post(BaseModel):
-    title: str
-    content: str
-    published: bool = True  # Default value is True if not provided
 
 @app.get("/posts")
 def get_posts():

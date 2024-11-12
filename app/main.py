@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Response, status, HTTPException
-from pydantic import BaseModel
+from app.schemas import Post
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import time
@@ -25,12 +25,6 @@ while True:
         print("Connecting to database failed")
         print(f"Error: {e}")
         time.sleep(3)
-
-# Define the Pydantic model for input validation
-class Post(BaseModel):
-    title: str
-    content: str
-    published: bool = True  # Default value is True if not provided
 
 # 1. Get All Posts
 @app.get("/posts")
